@@ -226,25 +226,47 @@ function activate(context) {
         }
     });
 	  
-	  context.subscriptions.push(pasteCommand);
+	context.subscriptions.push(pasteCommand);
 
     // Cargar las decoraciones desde el estado del workspace
-    let decorationsMap = context.workspaceState.get('decorationsMap', {});
+    //let decorationsMap = context.workspaceState.get('decorationsMap', {});
     
     //Esto es provisional. Me sigue dando fallo en el decorationsMap
-    let decorationsWithSpace = [];
-    let decorationsWithoutSpace = [];
-    let decorationsPasted = [];
-    vscode.workspace.onDidChangeTextDocument((event) => {
-        const document = event.document;
-        const docUri = document.uri.toString();
-        decorationsWithSpace = decorationsMap[docUri].withSpace || [];
-        decorationsWithoutSpace = decorationsMap[docUri].withoutSpace || [];
-        decorationsPasted = decorationsMap[docUri].pasted || [];
-    })
+    let decorationsMapRaw = context.workspaceState.get('decorationsMap', '{}');
+    //decorationsMapRaw = '{}';
+    let decorationsMap ={};
+    if (decorationsMapRaw !== '{}') {
+        decorationsMap = JSON.parse(decorationsMapRaw);
+         // Forzar que decorationsMap tenga un prototipo de objeto
+        decorationsMap = Object.assign({}, decorationsMap);
+    }
+
+   
+
+    console.log(Object.keys(decorationsMap)); // Ahora debería mostrar las claves correctamente
+
+
+    // Reconstruir rangos
+    for (let docUri in decorationsMap) {
+        for (let key of ['withSpace', 'withoutSpace', 'pasted']) {
+            if (decorationsMap[docUri][key]) {
+                decorationsMap[docUri][key] = decorationsMap[docUri][key].map(decoration => {
+                    let [start, end] = decoration.range; // Extrae el array de dos posiciones
+                    return {
+                        range: new vscode.Range(
+                            new vscode.Position(start.line, start.character),
+                            new vscode.Position(end.line, end.character)
+                        )
+                    };
+                });
+            }
+        }
+    }
+    
+
     //Hasta aqui es provisional
     // Esta linea hay q quitarsela
-    decorationsMap = {};
+    //decorationsMap = {};
     console.log(decorationsMap);
     let activateDecorations = context.workspaceState.get('activateDecorations', true);
     console.log(activateDecorations);
@@ -252,6 +274,7 @@ function activate(context) {
     let isPasting = false;
 
     // Verificar y limpiar el decorationsMap
+    /*
     vscode.workspace.textDocuments.forEach(document => {
         const docUri = document.uri.toString();
         if (decorationsMap[docUri]) {
@@ -266,7 +289,7 @@ function activate(context) {
 
     // Guardar el decorationsMap limpio en el estado del workspace
     context.workspaceState.update('decorationsMap', decorationsMap);
-
+*/
 
     // Obtener el número de líneas del documento activo al activar la extensión
     const editor = vscode.window.activeTextEditor;
@@ -548,7 +571,9 @@ function activate(context) {
                 };
 
                 // Guardar las decoraciones en el estado del workspace
-                context.workspaceState.update('decorationsMap', decorationsMap);
+                context.workspaceState.update('decorationsMap', JSON.stringify(decorationsMap));
+                console.log(decorationsMap);
+
 
                 // Aplicar las decoraciones
                 if(activateDecorations){
