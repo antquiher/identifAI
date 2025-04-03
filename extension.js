@@ -201,24 +201,7 @@ function activate(context) {
             const position = editor.selection.active;
             editBuilder.insert(position, clipboardText);
           }).then(() => {
-            // Aplicar la decoración de texto pegado
-            const startPos = editor.selection.active;
-            const endPos = startPos.translate(0, clipboardText.length);
-            const range = new vscode.Range(startPos, endPos);
-            const docUri = editor.document.uri.toString();
-            let decorationsPasted = [];
-            if (decorationsMap[docUri] && decorationsMap[docUri].pasted) {
-                decorationsPasted = decorationsMap[docUri].pasted;
-            }
-            decorationsPasted.push({ range: range });
             
-            decorationsMap[docUri] = {
-                ...decorationsMap[docUri],
-                pasted: decorationsPasted
-            };
-            
-            context.workspaceState.update('decorationsMap', decorationsMap);
-            editor.setDecorations(decorationTypePasted, decorationsPasted);
             
             // Lógica personalizada después de pegar
             vscode.window.showInformationMessage('Pegar personalizado ejecutado.');
@@ -233,7 +216,8 @@ function activate(context) {
     
     //Esto es provisional. Me sigue dando fallo en el decorationsMap
     let decorationsMapRaw = context.workspaceState.get('decorationsMap', '{}');
-    //decorationsMapRaw = '{}';
+    console.log(decorationsMapRaw);
+    decorationsMapRaw = '{}';
     let decorationsMap ={};
     if (decorationsMapRaw !== '{}') {
         decorationsMap = JSON.parse(decorationsMapRaw);
@@ -318,24 +302,95 @@ function activate(context) {
         }
     });
 
-// Aplicar las decoraciones a todos los documentos abiertos al activar la extensión   TODO: Revisar si es necesario
-/*
-    if(activateDecorations){
-        vscode.commands.executeCommand('identifAI.showDecorations');
-    }
-*/
 
-    function adjustRangesAfterPosition(ranges, position, lineOffset) {
-        return ranges.map(range => {
-            if (range.end.line > position.line || (range.end.line === position.line && range.end.character > position.character)) {
-                return new vscode.Range(
-                    new vscode.Position(range.start.line + lineOffset, range.start.character),
-                    new vscode.Position(range.end.line + lineOffset, range.end.character)
-                );
+
+    function deleteFunctionOfIADecoration(decoration, startPos, endPos, subLine, change) { 
+        const finDelBorrado= change.range.end;
+
+        if (decoration.range.start.line === startPos.line && subLine === 0) {
+            const aux = change.rangeLength;
+            if ((decoration.range.start.isBefore(startPos) && decoration.range.end.isAfter(endPos)) || 
+            (finDelBorrado.isAfter(decoration.range.start) && finDelBorrado.isBefore(decoration.range.end)) ) {
+                return {
+                    range: new vscode.Range(decoration.range.start, decoration.range.end.translate(0, -aux))
+                };
+            } else if (decoration.range.start.isAfter(startPos)) {
+                return {
+                    range: new vscode.Range(decoration.range.start.translate(0, -aux), decoration.range.end.translate(0, -aux))
+                };
+                
+            } 
+            else{
+                return decoration;
             }
-            return range;
-        });
+        }
+        
+        else if ((decoration.range.start.line > startPos.line - subLine ) && subLine !== 0) {
+            return {
+                range: new vscode.Range(
+                    decoration.range.start.translate(subLine, 0),
+                    decoration.range.end.translate(subLine, 0)
+                )
+            };
+        }
+        
+        else if ((decoration.range.start.line >= startPos.line ) && subLine !== 0) {
+
+            if (decoration.range.start.line > startPos.line && decoration.range.end.line < startPos.line - subLine) { 
+                return null;
+            }
+            else if (decoration.range.start.line === startPos.line && decoration.range.end.line < startPos.line - subLine && decoration.range.end.character > startPos.character) {
+                return {
+                    range: new vscode.Range(decoration.range.start, startPos)
+                };
+            }
+            else if (decoration.range.start.line > startPos.line && decoration.range.end.line === startPos.line - subLine ) {
+                const endChar = finDelBorrado.character;
+                const aux = startPos.character - endChar;
+                if (decoration.range.start.character >= endChar) {
+                    return {
+                        range: new vscode.Range(
+                            decoration.range.start.translate(subLine, aux),
+                            decoration.range.end.translate(subLine, aux)
+                        )
+                    };
+                }
+                else if (decoration.range.end.character > endChar && decoration.range.start.character < endChar) {
+                    return {
+                        range: new vscode.Range(startPos, decoration.range.end.translate(subLine, aux))
+                    };
+                }
+                return null;
+            }
+        }
+        return decoration;
+    
     }
+
+    //Esta la tengo que revisar para si inserto línea justo antes de la decoración. Mirar eliminado para referencia
+    function modifyFunctionOfIAMap(decoration, startPos, endPos, subLine, text) {
+        if (decoration.range.contains(startPos)) {
+            const beforeRange = new vscode.Range(decoration.range.start, startPos);
+            const afterRange = new vscode.Range(startPos.translate(0, text.length), decoration.range.end.translate(0, text.length));
+            return [
+                { range: beforeRange },
+                { range: afterRange }
+            ];
+        } else if (decoration.range.start.isAfter(startPos) && decoration.range.start.line === startPos.line && subLine === 0) {
+            if(decoration.range.start.line === startPos.line){
+                return [{
+                    range: new vscode.Range(decoration.range.start.translate(0, text.length), decoration.range.end.translate(0, text.length))
+                }];
+            }
+        }
+        else if ((decoration.range.start.isAfter(startPos)  || decoration.range.start.isAfter(endPos)) && subLine !== 0){ //Metemos
+            return [{
+                range: new vscode.Range(decoration.range.start.translate(subLine, 0), decoration.range.end.translate(subLine, 0))
+            }];
+        }
+        return [decoration];
+    }
+
 
 // Main metodo para la extensión
     vscode.workspace.onDidChangeTextDocument((event) => {
@@ -343,6 +398,8 @@ function activate(context) {
         const document = event.document;
         const changes = event.contentChanges;
         const docUri = document.uri.toString();
+        const newNewLines = document.lineCount;
+        const subLine= newNewLines - numLines;
         if (changes.length > 0) {
             const editor = vscode.window.activeTextEditor;
             if (editor && editor.document === document) {
@@ -358,165 +415,51 @@ function activate(context) {
                 changes.forEach(change => {
                     const text = change.text;
                     const startPos = change.range.start;
-                    const endPos = change.range.start.translate(0, text.length);
+                    const endPos = change.range.start.translate(0, text.split('\n')[0].trimEnd().length);
 
                     if (text.length === 0) { // Eliminación de texto
-                        const linesToRemove = new Set();
-
                         // Para el withSpace
                         decorationsWithSpace = decorationsWithSpace.map(decoration => {
-                            const document = editor.document;
-                            const newNewLines = document.lineCount;
-                            if (newNewLines !== numLines) {
-                                const subLine= newNewLines - numLines;
-                                numLines = newNewLines;
-                                if(subLine<0){
-                                    for (let i=1; i<=subLine; i++){
-                                        linesToRemove.add(i);
-                                    }
-                                    return false
-                                }
-                            }
-                            if (decoration.range.contains(startPos) || decoration.range.contains(endPos)) {
-                                if (decoration.range.start.isBefore(startPos) && decoration.range.end.isAfter(endPos)) {
-                                    return {
-                                        range: new vscode.Range(decoration.range.start, decoration.range.end.translate(0, -change.rangeLength))
-                                    };
-                                } else if (decoration.range.start.isBefore(startPos)) {
-                                    return {
-                                        range: new vscode.Range(decoration.range.start, startPos)
-                                    };
-                                } else if (decoration.range.end.isAfter(endPos)) {
-                                    return {
-                                        range: new vscode.Range(endPos, decoration.range.end.translate(0, -change.rangeLength))
-                                    };
-                                }
-                            }
-                            return decoration;
-                        }).filter(decoration => !decoration.range.isEmpty);
+                            return deleteFunctionOfIADecoration(decoration, startPos, endPos, subLine, change);
+                        }).filter(Boolean);
 
                         //Para el paste
                         decorationsPasted = decorationsPasted.map(decoration => {
-                            const document = editor.document;
-                            const newNewLines = document.lineCount;
-                            if (newNewLines !== numLines) {
-                                const subLine= newNewLines - numLines;
-                                numLines = newNewLines;
-                                if(subLine<0){
-                                    for (let i=1; i<=subLine; i++){
-                                        linesToRemove.add(i);
-                                    }
-                                    return false
-                                }
-                            }
-                            if (decoration.range.contains(startPos) || decoration.range.contains(endPos)) {
-                                if (decoration.range.start.isBefore(startPos) && decoration.range.end.isAfter(endPos)) {
-                                    return {
-                                        range: new vscode.Range(decoration.range.start, decoration.range.end.translate(0, -change.rangeLength))
-                                    };
-                                } else if (decoration.range.start.isBefore(startPos)) {
-                                    return {
-                                        range: new vscode.Range(decoration.range.start, startPos)
-                                    };
-                                } else if (decoration.range.end.isAfter(endPos)) {
-                                    return {
-                                        range: new vscode.Range(endPos, decoration.range.end.translate(0, -change.rangeLength))
-                                    };
-                                }
-                            }
-                            return decoration;
-                        }).filter(decoration => !decoration.range.isEmpty);
+                            return deleteFunctionOfIADecoration(decoration, startPos, endPos, subLine, change);
+                        }).filter(Boolean);
 
                         //Para el sin espacio
                         decorationsWithoutSpace = decorationsWithoutSpace.map(decoration => {
-                            if (decoration.range.contains(startPos) || decoration.range.contains(endPos)) {
-                                if (decoration.range.start.isBefore(startPos) && decoration.range.end.isAfter(endPos)) {
-                                    return {
-                                        range: new vscode.Range(decoration.range.start, decoration.range.end.translate(0, -change.rangeLength))
-                                    };
-                                } else if (decoration.range.start.isBefore(startPos)) {
-                                    return {
-                                        range: new vscode.Range(decoration.range.start, startPos)
-                                    };
-                                } else if (decoration.range.end.isAfter(endPos)) {
-                                    return {
-                                        range: new vscode.Range(endPos, decoration.range.end.translate(0, -change.rangeLength))
-                                    };
-                                }
-                            }
-                            return decoration;
-                        }).filter(decoration => !decoration.range.isEmpty);
+                            return deleteFunctionOfIADecoration(decoration, startPos, endPos, subLine, change);
+                        }).filter(Boolean);
                         
+                        decorationsMap[docUri] = {
+                            withSpace: decorationsWithSpace,
+                            withoutSpace: decorationsWithoutSpace,
+                            pasted: decorationsPasted
+                        };
                         
                     }
-                    
-                    else{// Inserción de texto
+                    else{// Inserción de texto e inserción de líneas
+                        //Con espacio
                         decorationsWithSpace = decorationsWithSpace.flatMap(decoration => {
-                            if (decoration.range.contains(startPos)) {
-                                const beforeRange = new vscode.Range(decoration.range.start, startPos);
-                                const afterRange = new vscode.Range(startPos.translate(0, text.length), decoration.range.end.translate(0, text.length));
-                                return [
-                                    { range: beforeRange },
-                                    { range: afterRange }
-                                ];
-                            } else if (decoration.range.start.isAfter(startPos)) {
-                                return [{
-                                    range: new vscode.Range(decoration.range.start.translate(0, text.length), decoration.range.end.translate(0, text.length))
-                                }];
-                            }
-                            return [decoration];
+                            return modifyFunctionOfIAMap(decoration, startPos, endPos, subLine, text);
                         });
 
+                        //Sin espacio
                         decorationsWithoutSpace = decorationsWithoutSpace.flatMap(decoration => {
-                            if (decoration.range.contains(startPos)) {
-                                const beforeRange = new vscode.Range(decoration.range.start, startPos);
-                                const afterRange = new vscode.Range(startPos.translate(0, text.length), decoration.range.end.translate(0, text.length));
-                                return [
-                                    { range: beforeRange },
-                                    { range: afterRange }
-                                ];
-                            } else if (decoration.range.start.isAfter(startPos) ) {
-                                if(text.length == 1){
-                                    return [{
-                                        range: new vscode.Range(decoration.range.start.translate(0, text.length), decoration.range.end.translate(0, text.length))
-                                    }];
-                                }
-                                if(!(/\s/.test(text))){
-                                    return [{
-                                        range: new vscode.Range(decoration.range.start.translate(0, text.length), decoration.range.end.translate(0, text.length))
-                                    }];
-                                }
-                            }
-                            return [decoration];
+                            return modifyFunctionOfIAMap(decoration, startPos, endPos, subLine, text);
                         });
 
+                        //Pegado
                         decorationsPasted = decorationsPasted.flatMap(decoration => {
-                            if (decoration.range.contains(startPos)) {
-                                const beforeRange = new vscode.Range(decoration.range.start, startPos);
-                                const afterRange = new vscode.Range(startPos.translate(0, text.length), decoration.range.end.translate(0, text.length));
-                                return [
-                                    { range: beforeRange },
-                                    { range: afterRange }
-                                ];
-                            } else if (decoration.range.start.isAfter(startPos) ) {
-                                if(text.length == 1){
-                                    return [{
-                                        range: new vscode.Range(decoration.range.start.translate(0, text.length), decoration.range.end.translate(0, text.length))
-                                    }];
-                                }
-                                if(!(/\s/.test(text))){
-                                    return [{
-                                        range: new vscode.Range(decoration.range.start.translate(0, text.length), decoration.range.end.translate(0, text.length))
-                                    }];
-                                }
-                            }
-                            return [decoration];
+                            return modifyFunctionOfIAMap(decoration, startPos, endPos, subLine, text);
                         });
                     }
 
-                    if (text.length > 1) {
+                    if (text.length > 1 && text.trim() !== "") {
                         
-                        //Esto hay q modificar el if \s
+                        
                         if(startPos.isBefore(endPos)){
                             console.log(text);
                             const range = new vscode.Range(startPos, endPos);
@@ -541,29 +484,45 @@ function activate(context) {
                     if (newNewLines !== numLines) {
                         const subLine= newNewLines - numLines;
                         numLines = newNewLines;
-                        if(subLine > 0){
+                        if(subLine > 0){ 
                             const lineStart=startPos.line;
                             for (let i =1; i <= subLine; i++) {
-                                const aux = editor.document.lineAt(lineStart+i).text
-                                if((/^\s+$/.test(aux))){
-                                    const range = new vscode.Range(new vscode.Position(lineStart+i, 0), new vscode.Position(lineStart+i, Number. MAX_VALUE));
-                                    decorationsWithSpace.push({ range: range });
+                                let aux = text.split('\n')[i];
+                                aux=aux.trimEnd();
+                                if(!(/^\s+$/.test(aux))){
+                                    const range = new vscode.Range(new vscode.Position(lineStart+i, 0), new vscode.Position(lineStart+i, aux.length));
+                                    if (isPasting) {
+                                        decorationsPasted.push({ range: range });
+                                    }
+                                    else{
+                                        decorationsWithSpace.push({ range: range });
+                                    }
                                 }
-                                decorationsWithSpace = adjustRangesAfterPosition(decorationsWithSpace, startPos, subLine);
-                                decorationsWithoutSpace = adjustRangesAfterPosition(decorationsWithoutSpace, startPos, subLine);
-                                decorationsPasted = adjustRangesAfterPosition(decorationsPasted, startPos, subLine);
                                 
                             }
                         }
-                        if(subLine < 0){
-                            decorationsWithSpace = adjustRangesAfterPosition(decorationsWithSpace, startPos, subLine);
-                            decorationsWithoutSpace = adjustRangesAfterPosition(decorationsWithoutSpace, startPos, subLine);
-                            decorationsPasted = adjustRangesAfterPosition(decorationsPasted, startPos, subLine);
-                        }
+                        
                     }
                 });
 
+                
+
                 // Almacenar las decoraciones en el objeto
+                decorationsWithSpace = decorationsWithSpace.filter(decoration => 
+                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto único
+                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estén contenidos en la línea 
+                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estén contenidos en la línea
+                );
+                decorationsWithoutSpace = decorationsWithoutSpace.filter(decoration => 
+                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto único
+                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estén contenidos en la línea 
+                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estén contenidos en la línea 
+                );
+                decorationsPasted = decorationsPasted.filter(decoration =>
+                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto único
+                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estén contenidos en la línea 
+                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estén contenidos en la línea
+                );
                 decorationsMap[docUri] = {
                     withSpace: decorationsWithSpace,
                     withoutSpace: decorationsWithoutSpace,
@@ -669,10 +628,14 @@ function activate(context) {
         vscode.window.showInformationMessage('Se han escondido las decoraciones');
     });
 
-        context.subscriptions.push(deleteMap);
-        context.subscriptions.push(showMap);
-        context.subscriptions.push(showDecorationsCommand);
-        context.subscriptions.push(hideDecorationsCommand);
+    context.subscriptions.push(deleteMap);
+    context.subscriptions.push(showMap);
+    context.subscriptions.push(showDecorationsCommand);
+    context.subscriptions.push(hideDecorationsCommand);
+
+    //Esto es para los números en el explorer
+    
+
     }
 
 //function deactivate() {}
