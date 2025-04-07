@@ -547,6 +547,7 @@ function activate(context) {
 
                 // Actualizar el árbol de vista
                 identifAIProviderPercent.refresh();
+                fileDecorationProvider.refresh();
                 
             }
         }
@@ -634,6 +635,37 @@ function activate(context) {
     context.subscriptions.push(hideDecorationsCommand);
 
     //Esto es para los números en el explorer
+    class FileDecorationProvider {
+        constructor() {
+            this._onDidChangeFileDecorations = new vscode.EventEmitter();
+            this.onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
+        }
+    
+        provideFileDecoration(uri) {
+            const fileDecorations = decorationsMap[uri.toString()];
+            if (fileDecorations) {
+                const totalDecorations = fileDecorations.withSpace.length +
+                                         fileDecorations.withoutSpace.length +
+                                         fileDecorations.pasted.length;
+    
+                // Devuelve la decoración con badge y tooltip
+                return {
+                    badge: totalDecorations.toString(), // Número al lado del archivo
+                    tooltip: `\nDecorations: ${totalDecorations}\n- With Space: ${fileDecorations.withSpace.length}\n- Without Space: ${fileDecorations.withoutSpace.length}\n- Pasted: ${fileDecorations.pasted.length}`
+                };
+            }
+            return {
+                badge: null,
+                tooltip: '\nNot using identifAI on this file.' // Tooltip por defecto
+            }; // Sin decoraciones
+        }
+    
+        refresh() {
+            this._onDidChangeFileDecorations.fire();
+        }
+    }
+    const fileDecorationProvider = new FileDecorationProvider();
+    vscode.window.registerFileDecorationProvider(fileDecorationProvider);
     
 
     }
