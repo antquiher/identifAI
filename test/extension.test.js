@@ -1,15 +1,3 @@
-const assert = require('assert');
-
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
-const vscode = require('vscode');
-// const myExtension = require('../extension');
-
-suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
-
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
-	});
-});
+version https://git-lfs.github.com/spec/v1
+oid sha256:18e05dbfbeb5e61cadaed5a95c957d26654c08837a49757974f96f2b8450c6e2
+size 26758
