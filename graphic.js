@@ -157,11 +157,56 @@ function getNavigationTreeItemsGrouped(decorationsMap) {
     return items;
 }
 
+function getChildrenForGlobalInformation(decorationsMap) {
+    let totalChars = 0;
+    let withSpaceChars = 0;
+    let withoutSpaceChars = 0;
+    let pastedChars = 0;
+    if(decorationsMap.length === 0) {
+        return [
+                    new vscode.TreeItem(`Texto con AI: 0.00%`, vscode.TreeItemCollapsibleState.None),
+                    new vscode.TreeItem(`Texto con VS: 0.00%`, vscode.TreeItemCollapsibleState.None),
+                    new vscode.TreeItem(`Texto pegado: 0.00%`, vscode.TreeItemCollapsibleState.None),
+                    new vscode.TreeItem(`Texto sin marcar: 0.00%`, vscode.TreeItemCollapsibleState.None)
+                ];
+    }
+    else{
+        for (const [docUri, decorations] of Object.entries(decorationsMap)) {
+            const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === docUri);
+            if (!doc) continue;
+            totalChars += doc.getText().length;
+            withSpaceChars += decorations.withSpace.reduce((acc, decoration) => acc + decoration.range.end.character - decoration.range.start.character, 0);
+            withoutSpaceChars += decorations.withoutSpace.reduce((acc, decoration) => acc + decoration.range.end.character - decoration.range.start.character, 0);
+            pastedChars += decorations.pasted.reduce((acc, decoration) => acc + decoration.range.end.character - decoration.range.start.character, 0);
+        }
+        const defaultChars = totalChars - (withSpaceChars + withoutSpaceChars + pastedChars);
+
+        const withSpacePercentage = ((withSpaceChars / totalChars) * 100).toFixed(2);
+        const withoutSpacePercentage = ((withoutSpaceChars / totalChars) * 100).toFixed(2);
+        const pastedPercentage = ((pastedChars / totalChars) * 100).toFixed(2);
+        const defaultPercentage = ((defaultChars / totalChars) * 100).toFixed(2);
+
+        const items = [
+            new vscode.TreeItem(`Texto con AI: ${withSpacePercentage}%`, vscode.TreeItemCollapsibleState.None),
+            new vscode.TreeItem(`Texto con VS: ${withoutSpacePercentage}%`, vscode.TreeItemCollapsibleState.None),
+            new vscode.TreeItem(`Texto pegado: ${pastedPercentage}%`, vscode.TreeItemCollapsibleState.None),
+            new vscode.TreeItem(`Texto sin marcar: ${defaultPercentage}%`, vscode.TreeItemCollapsibleState.None)
+        ];
+
+        items[0].iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('editorError.foreground'));
+        items[1].iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('editorWarning.foreground'));
+        items[2].iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('editorInfo.foreground'));
+        items[3].iconPath = new vscode.ThemeIcon('circle-filled');
+
+        return items;
+    }
+}
 
 module.exports = {
     getChildrenForProvider1,
     getChildrenForProvider2,
     handleApplySelection,
     OptionItem,
-    getNavigationTreeItemsGrouped
+    getNavigationTreeItemsGrouped,
+    getChildrenForGlobalInformation
 };

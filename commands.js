@@ -68,6 +68,20 @@ function deleteDecorations(context) {
     }
 }
 
+function deleteDecorationsInRange(decorationsMap, docUri, range) {
+    if (!decorationsMap[docUri]) return;
+
+    ['withSpace', 'withoutSpace', 'pasted'].forEach(type => {
+        decorationsMap[docUri][type] = (decorationsMap[docUri][type] || []).filter(decoration => {
+            // Si NO hay intersección, la dejamos
+            return (
+                decoration.range.end.isBefore(range.start) ||
+                decoration.range.start.isAfter(range.end)
+            );
+        });
+    });
+}
+
 function hideDecorationsType(decorationsMap, decorationTypeWithSpace, decorationTypeWithoutSpace, decorationTypePasted, decorationTypeHidden, context, decorationType) {
     vscode.workspace.textDocuments.forEach(document => {
         const editor = vscode.window.visibleTextEditors.find(e => e.document === document);
@@ -109,5 +123,6 @@ function hideDecorationsType(decorationsMap, decorationTypeWithSpace, decoration
 module.exports = {
     showDecorationsType,
     deleteDecorations,
+    deleteDecorationsInRange,
     hideDecorationsType
 };
