@@ -11,7 +11,7 @@ function activate(context) {
     let decorationTypeWithoutSpace;
     let decorationTypePasted;
 
-    // Crear tipos de decoraciÃ³n con estilos especÃ­ficos
+    // Crear tipos de decoración con estilos especí­ficos
     let colorWithSpace = context.globalState.get('colorWithSpace', 'rgba(255,0,0,0.3)');
     decorationTypeWithSpace = vscode.window.createTextEditorDecorationType({
         backgroundColor: colorWithSpace // Color de fondo rojo con transparencia
@@ -159,10 +159,7 @@ function activate(context) {
             const position = editor.selection.active;
             editBuilder.insert(position, clipboardText);
           }).then(() => {
-            
-            
-            // LÃ³gica personalizada despuÃ©s de pegar
-            vscode.window.showInformationMessage('Pegar personalizado ejecutado.');
+            console.log('Pegar personalizado ejecutado.');
           });
         }
     });
@@ -172,11 +169,10 @@ function activate(context) {
     //Esto es provisional. Me sigue dando fallo en el decorationsMap
     let decorationsMapRaw = context.workspaceState.get('decorationsMap', '{}');
     console.log(decorationsMapRaw);
-    decorationsMapRaw = '{}';       //Esto hay q quitaralo. No se debe de eliminar algo que ya estÃ© guardado
+    decorationsMapRaw = '{}';      
     let decorationsMap ={};
     if (decorationsMapRaw !== '{}') {
         decorationsMap = JSON.parse(decorationsMapRaw);
-         // Forzar que decorationsMap tenga un prototipo de objeto
         decorationsMap = Object.assign({}, decorationsMap);
     }
 
@@ -203,7 +199,7 @@ function activate(context) {
 
         getChildren(element) {
             if (!element) {
-                // Nodo raÃ­z: devolver los archivos
+                // Nodo raí­z: devolver los archivos
                 return this.treeData;
             }
 
@@ -253,19 +249,19 @@ function activate(context) {
     let numLines =0
     let isPasting = false;
 
-    // Obtener el nÃºmero de lÃ­neas del documento activo al activar la extensiÃ³n
+    // Obtener el número de líneas del documento activo al activar la extensión
     const editor = vscode.window.activeTextEditor;
     if (editor) {
         const document = editor.document;
         numLines = document.lineCount;
-        console.log(`NÃºmero de lÃ­neas: ${numLines}`);
+        console.log(`Número de líneas: ${numLines}`);
         const fileName = document.fileName;
         console.log(`Nombre del fichero activo: ${fileName}`);
     }
 
     vscode.workspace.onDidOpenTextDocument((document) => {
         numLines = document.lineCount;
-        console.log(`NÃºmero de lÃ­neas: ${numLines}`);
+        console.log(`Número de líneas: ${numLines}`);
         const fileName = document.fileName;
         console.log(`Nombre del fichero activo: ${fileName}`);
     });
@@ -274,13 +270,13 @@ function activate(context) {
         if (editor) {
             const document = editor.document;
             numLines = document.lineCount;
-            console.log(`NÃºmero de lÃ­neas: ${numLines}`);
+            console.log(`Número de líneas: ${numLines}`);
             const fileName = document.fileName;
             console.log(`Nombre del fichero activo: ${fileName}`);
         }
     });
 
-// Main metodo para la extensiÃ³n
+// Main metodo para la extensión
     vscode.workspace.onDidChangeTextDocument((event) => {
         const document = event.document;
         const changes = event.contentChanges;
@@ -304,7 +300,7 @@ function activate(context) {
                     const startPos = change.range.start;
                     const endPos = change.range.start.translate(0, text.split('\n')[0].trimEnd().length);
 
-                    if (text.length === 0) { // EliminaciÃ³n de texto
+                    if (text.length === 0) { // Eliminación de texto
                         // Para el withSpace
                         decorationsWithSpace = decorationsWithSpace.map(decoration => {
                             return deleteFunctionOfIADecoration(decoration, startPos, endPos, subLine, change);
@@ -327,7 +323,7 @@ function activate(context) {
                         };
                         
                     }
-                    else{// InserciÃ³n de texto e inserciÃ³n de lÃ­neas
+                    else{// Inserción de texto e inserción de líneas
                         //Con espacio
                         decorationsWithSpace = decorationsWithSpace.flatMap(decoration => {
                             return modifyFunctionOfIAMap(decoration, startPos, endPos, subLine, text);
@@ -365,7 +361,7 @@ function activate(context) {
                         }
                     }
 
-                    // Por si se mete mÃ¡s de una lÃ­nea
+                    // Por si se mete más de una línea
                     const document = editor.document;
                     const newNewLines = document.lineCount;
                     if (newNewLines !== numLines) {
@@ -396,19 +392,19 @@ function activate(context) {
 
                 // Almacenar las decoraciones en el objeto
                 decorationsWithSpace = decorationsWithSpace.filter(decoration => 
-                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto Ãºnico
-                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estÃ©n contenidos en la lÃ­nea 
-                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estÃ©n contenidos en la lÃ­nea
+                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto único
+                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que están contenidos en la línea 
+                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que están contenidos en la línea
                 );
                 decorationsWithoutSpace = decorationsWithoutSpace.filter(decoration => 
-                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto Ãºnico
-                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estÃ©n contenidos en la lÃ­nea 
-                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estÃ©n contenidos en la lÃ­nea 
+                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto único
+                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que están contenidos en la línea 
+                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que están contenidos en la línea 
                 );
                 decorationsPasted = decorationsPasted.filter(decoration =>
-                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto Ãºnico
-                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estÃ©n contenidos en la lÃ­nea 
-                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que estÃ©n contenidos en la lÃ­nea
+                    !decoration.range.start.isEqual(decoration.range.end) // Solo guarda rangos que no sean un punto único
+                    && decoration.range.end.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que están contenidos en la línea 
+                    && decoration.range.start.character <= document.lineAt(decoration.range.start.line).text.length //Solo guardo los datos que están contenidos en la línea
                 );
                 decorationsMap[docUri] = {
                     withSpace: decorationsWithSpace,
@@ -434,11 +430,11 @@ function activate(context) {
                     }
                 }
 
-                // Actualizar la longitud de las lÃ­neas del documento
+                // Actualizar la longitud de las líneas del documento
                 previousLineLengths[docUri] = document.lineCount;
                 isPasting = false;
 
-                // Actualizar el Ã¡rbol de vista
+                // Actualizar el árbol de vista
                 identifAIProviderPercent.refresh();
                 identifAIGlobalProvider.refresh();
                 fileDecorationProvider.refresh();
@@ -453,8 +449,15 @@ function activate(context) {
             const document = editor.document;
             const decorations = decorationsMap[document.uri.toString()];
             if (decorations) {
-                editor.setDecorations(decorationTypeWithSpace, decorations.withSpace);
-                editor.setDecorations(decorationTypeWithoutSpace, decorations.withoutSpace);
+                if(decSpaced) {
+                    editor.setDecorations(decorationTypeWithSpace, decorations.withSpace);
+                }
+                if(decNoSpaced) {
+                    editor.setDecorations(decorationTypeWithoutSpace, decorations.withoutSpace);
+                }
+                if(decPasted) {
+                    editor.setDecorations(decorationTypePasted, decorations.pasted);
+                }
             }
             previousLineLengths[document.uri.toString()] = document.lineCount;
         }
@@ -509,7 +512,7 @@ function activate(context) {
     });
 
     const showMap = vscode.commands.registerCommand('identifAI.showIAMap', function () {
-		vscode.window.showInformationMessage('InformaciÃ³n muestreada en el log');
+		vscode.window.showInformationMessage('logging decorationsMap to console');
         console.log(decorationsMap);
 	});
 
@@ -589,7 +592,7 @@ function activate(context) {
     context.subscriptions.push(hideDecorationsWithoutSpace);
     context.subscriptions.push(hideDecorationsPasted);
 
-    //Esto es para los nÃºmeros en el explorer
+    //Esto es para los números en el explorer
     class FileDecorationProvider {
         constructor() {
             this._onDidChangeFileDecorations = new vscode.EventEmitter();
@@ -603,9 +606,9 @@ function activate(context) {
                                          fileDecorations.withoutSpace.length +
                                          fileDecorations.pasted.length;
     
-                // Devuelve la decoraciÃ³n con badge y tooltip
+                // Devuelve la decoración con badge y tooltip
                 return {
-                    badge: totalDecorations.toString(), // NÃºmero al lado del archivo
+                    badge: totalDecorations.toString(), // Número al lado del archivo
                     tooltip: `\nDecorations: ${totalDecorations}\n- With AI: ${fileDecorations.withSpace.length}\n- With VS: ${fileDecorations.withoutSpace.length}\n- Pasted: ${fileDecorations.pasted.length}`
                 };
             }
